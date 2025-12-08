@@ -1,0 +1,10 @@
+path: ./mining_macro/yolo_juniper_dataset/data.yaml
+
+train: images/train
+val: images/val
+
+names:
+  0: rope
+  1: player
+  2: target
+  3: terrain
