@@ -1,0 +1,25 @@
+{
+  "events": [
+    {
+      "type": "down",
+      "key": "ALT",
+      "time": 1.1069
+    },
+    {
+      "type": "up",
+      "key": "ALT",
+      "time": 1.2162
+    },
+    {
+      "type": "down",
+      "key": "ALT",
+      "time": 1.3861
+    },
+    {
+      "type": "up",
+      "key": "ALT",
+      "time": 1.484
+    }
+  ],
+  "recorded_at": "2025-12-13 21:39:26"
+}

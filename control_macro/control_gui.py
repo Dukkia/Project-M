@@ -111,7 +111,6 @@ def poll_set_status():
                 last_loop_elapsed = float(st.get("last_loop_elapsed", 0.0) or 0.0)
                 progress = float(st.get("progress", 0.0) or 0.0)
 
-                # 상태 문자열
                 if loop_total > 0:
                     text = (
                         f"세트 매크로: {loop_idx}/{loop_total}회, "
@@ -123,12 +122,9 @@ def poll_set_status():
                         f"현재 세트 {set_no}, 누적 {total_elapsed:.1f}초"
                     )
 
-                # 위쪽 상세 라벨들 (실시간)
                 if label_total is not None:
                     if set_duration > 0:
-                        label_total.config(
-                            text=f"세트 길이(예상): {set_duration:.2f}초"
-                        )
+                        label_total.config(text=f"세트 길이(예상): {set_duration:.2f}초")
                     else:
                         label_total.config(text="세트 길이(예상): -")
 
@@ -199,36 +195,46 @@ def gui_start_record_set():
     gui_log(f"▶ 세트 {set_no} 녹화를 위한 record 모드를 실행합니다...")
 
     try:
-        subprocess.Popen(
-            args,
-            cwd=BASE_DIR,
-        )
+        subprocess.Popen(args, cwd=BASE_DIR)
         gui_log("   → 새로 뜬 콘솔 창에서 F9 / F10을 사용하세요.")
     except Exception as e:
         gui_log(f"❌ set-record 실행 실패: {e}")
 
 
-def launch_macro_process(cli_sets, repeat_count: int):
+def launch_macro_process(cli_sets, repeat_count: int, rules=None):
     """
     실제로 main.exe macro ... 프로세스를 실행하는 부분.
     (카운트다운이 끝난 후에만 호출)
+    rules: {set_no: interval} → F=set:interval 로 전달
     """
     global set_macro_proc
+    rules = rules or {}
 
     args_extra = []
     if repeat_count > 0:
         args_extra.append(f"R={repeat_count}")
+
+    # ✅ 강제 규칙 전달: F=5:10  (10번째마다 세트5 실행)
+    for set_no, interval in sorted(rules.items(), key=lambda x: int(x[0])):
+        try:
+            set_no_i = int(set_no)
+            interval_i = int(interval)
+        except Exception:
+            continue
+        if interval_i > 0:
+            args_extra.append(f"F={set_no_i}:{interval_i}")
+
     args_extra += [str(n) for n in cli_sets]
 
     args = get_main_invocation_args("macro", *args_extra)
 
     try:
-        set_macro_proc = subprocess.Popen(
-            args,
-            cwd=BASE_DIR,
-        )
+        set_macro_proc = subprocess.Popen(args, cwd=BASE_DIR)
         gui_log("▶ 세트 매크로 실행을 시작했습니다.")
         gui_log("   → 선택 세트: " + ", ".join(map(str, cli_sets)))
+        if rules:
+            rule_str = ", ".join([f"{k}={v}회마다" for k, v in rules.items()])
+            gui_log("   → 강제 규칙: " + rule_str)
         if repeat_count > 0:
             gui_log(f"   → 반복 횟수: {repeat_count}회")
         else:
@@ -238,29 +244,24 @@ def launch_macro_process(cli_sets, repeat_count: int):
         set_macro_proc = None
 
 
-def start_macro_with_countdown(cli_sets, repeat_count: int, seconds: int = 3):
+def start_macro_with_countdown(cli_sets, repeat_count: int, seconds: int = 3, rules=None):
     """
     세트 매크로 실행 전에 GUI에서 3,2,1 카운트다운을 보여준 뒤
     실제 매크로 프로세스를 실행.
-    ※ 카운트다운 동안 아래 정보 라벨들은 건드리지 않고,
-       오직 로그창에만 메시지를 남긴다.
     """
+    rules = rules or {}
+
     if root is None:
-        # 혹시라도 GUI 없이 호출되는 경우를 대비
-        launch_macro_process(cli_sets, repeat_count)
+        launch_macro_process(cli_sets, repeat_count, rules=rules)
         return
 
     def step(sec_left: int):
         if sec_left > 0:
-            # 🔹 밑의 label_set_status 같은 라벨은 건드리지 않고
-            #    그냥 로그에만 남긴다.
             gui_log(f"세트 매크로 {sec_left}초 후 시작...")
             root.after(1000, lambda: step(sec_left - 1))
         else:
             gui_log("세트 매크로 시작!")
-            # 🔹 여기서도 상태 라벨은 macro.py 쪽 상태 파일에 맡기고
-            #    프로세스만 실제로 시작한다.
-            launch_macro_process(cli_sets, repeat_count)
+            launch_macro_process(cli_sets, repeat_count, rules=rules)
 
     step(seconds)
 
@@ -268,8 +269,9 @@ def start_macro_with_countdown(cli_sets, repeat_count: int, seconds: int = 3):
 def gui_start_set_macro():
     """
     - macro_sets.json에서 세트 목록 읽어서 체크박스로 선택
+    - 세트별 (랜덤/세트: N) 입력으로 N번째마다 강제 실행 규칙 지정
     - 반복 횟수(Spinbox) 읽고
-    - 3,2,1 카운트다운 후 main.exe macro [R=N] [세트...] 실행
+    - 3,2,1 카운트다운 후 main.exe macro [R=N] [F=set:interval...] [세트...] 실행
     """
     global set_macro_proc, root, set_repeat_var
 
@@ -317,34 +319,49 @@ def gui_start_set_macro():
         frame,
         text="실행할 세트를 선택하세요:",
         font=("맑은 고딕", 10, "bold"),
-    ).grid(row=0, column=0, sticky="w", pady=(0, 5))
+    ).grid(row=0, column=0, columnspan=4, sticky="w", pady=(0, 5))
 
     vars_map = {}
     chk_widgets = {}
+    interval_vars = {}  # ✅ 세트별 n번째마다 강제 실행 값
 
     row = 1
     for n in available_nums:
         var = tk.IntVar(value=1)
         vars_map[n] = var
+
         ev_list = sets_raw.get(str(n))
         ev_count = len(ev_list) if isinstance(ev_list, list) else 0
-        text = f"세트 {n} (이벤트 {ev_count}개)"
 
         chk = tk.Checkbutton(
             frame,
-            text=text,
+            text=f"세트 {n} (이벤트 {ev_count}개)",
             variable=var,
             anchor="w",
             justify="left",
         )
         chk.grid(row=row, column=0, sticky="w")
         chk_widgets[n] = chk
+
+        iv = tk.IntVar(value=0)  # 0이면 규칙 없음(랜덤)
+        interval_vars[n] = iv
+
+        tk.Label(frame, text="(랜덤/세트:", font=("맑은 고딕", 9)).grid(
+            row=row, column=1, sticky="e", padx=(10, 2)
+        )
+        tk.Spinbox(frame, from_=0, to=9999, width=5, textvariable=iv).grid(
+            row=row, column=2, sticky="w"
+        )
+        tk.Label(frame, text=")", font=("맑은 고딕", 9)).grid(
+            row=row, column=3, sticky="w", padx=(2, 0)
+        )
+
         row += 1
 
     btn_frame = tk.Frame(frame)
-    btn_frame.grid(row=row, column=0, pady=(8, 0), sticky="ew")
+    btn_frame.grid(row=row, column=0, columnspan=4, pady=(8, 0), sticky="ew")
 
-    result = {"ok": False, "selected": None}
+    result = {"ok": False, "selected": None, "rules": {}}
 
     def select_all():
         for v in vars_map.values():
@@ -378,9 +395,7 @@ def gui_start_set_macro():
                 json.dump({"sets": sets_raw}, f, ensure_ascii=False, indent=2)
             gui_log(f"🗑 삭제된 세트: {', '.join(map(str, to_del))}")
         except Exception as e:
-            messagebox.showerror(
-                "오류", f"macro_sets.json 저장 실패: {e}", parent=dialog
-            )
+            messagebox.showerror("오류", f"macro_sets.json 저장 실패: {e}", parent=dialog)
             return
 
         for n in to_del:
@@ -389,6 +404,7 @@ def gui_start_set_macro():
                 chk.destroy()
             vars_map.pop(n, None)
             chk_widgets.pop(n, None)
+            interval_vars.pop(n, None)
 
         if not vars_map:
             messagebox.showinfo("알림", "모든 세트가 삭제되었습니다.", parent=dialog)
@@ -409,14 +425,22 @@ def gui_start_set_macro():
             remaining = sorted(set(remaining))
             if not remaining:
                 if messagebox is not None:
-                    messagebox.showwarning(
-                        "경고", "실행 가능한 세트가 없습니다.", parent=dialog
-                    )
+                    messagebox.showwarning("경고", "실행 가능한 세트가 없습니다.", parent=dialog)
                 return
             selected = remaining
 
+        rules = {}
+        for n in sorted(selected):
+            try:
+                interval = int(interval_vars[n].get())
+            except Exception:
+                interval = 0
+            if interval > 0:
+                rules[n] = interval
+
         result["ok"] = True
         result["selected"] = sorted(selected)
+        result["rules"] = rules
         dialog.destroy()
 
     def on_cancel():
@@ -428,9 +452,9 @@ def gui_start_set_macro():
     ttk.Button(btn_frame, text="전체 해제", command=clear_all, width=10).grid(
         row=0, column=1, padx=3, pady=2
     )
-    ttk.Button(
-        btn_frame, text="선택 세트 삭제", command=delete_selected, width=14
-    ).grid(row=0, column=2, padx=3, pady=2)
+    ttk.Button(btn_frame, text="선택 세트 삭제", command=delete_selected, width=14).grid(
+        row=0, column=2, padx=3, pady=2
+    )
 
     ttk.Button(btn_frame, text="확인", command=on_ok, width=10).grid(
         row=1, column=1, padx=3, pady=(6, 2)
@@ -446,6 +470,7 @@ def gui_start_set_macro():
         return
 
     cli_sets = result["selected"]
+    rules = result.get("rules", {}) or {}
 
     # 반복 횟수 읽기 (0 = 무한)
     repeat_count = 0
@@ -454,8 +479,7 @@ def gui_start_set_macro():
     except Exception:
         repeat_count = 0
 
-    # 여기서 바로 실행하지 않고, 3,2,1 카운트다운 후 실행
-    start_macro_with_countdown(cli_sets, repeat_count, seconds=3)
+    start_macro_with_countdown(cli_sets, repeat_count, seconds=3, rules=rules)
 
 
 def gui_on_click_stop():
@@ -531,10 +555,10 @@ def control_gui():
         command=gui_on_click_stop,
     ).grid(row=2, column=0, padx=5, pady=5, columnspan=2)
 
-    set_repeat_var = tk.IntVar(value=0)
-    tk.Label(
-        btn_frame, text="🔁 세트 매크로 반복 (0=무한):", font=("맑은 고딕", 10)
-    ).grid(row=3, column=0, padx=5, pady=5, sticky="e")
+    set_repeat_var = tk.IntVar(value=20)
+    tk.Label(btn_frame, text="🔁 세트 매크로 반복 (0=무한):", font=("맑은 고딕", 10)).grid(
+        row=3, column=0, padx=5, pady=5, sticky="e"
+    )
     tk.Spinbox(btn_frame, from_=0, to=9999, textvariable=set_repeat_var, width=6).grid(
         row=3, column=1, padx=5, pady=5, sticky="w"
     )
@@ -549,35 +573,25 @@ def control_gui():
     info_frame = tk.Frame(root)
     info_frame.pack(pady=5)
 
-    label_total = tk.Label(
-        info_frame, text="세트 길이(예상): -", font=("맑은 고딕", 10)
-    )
+    label_total = tk.Label(info_frame, text="세트 길이(예상): -", font=("맑은 고딕", 10))
     label_total.pack(anchor="w")
 
-    label_time = tk.Label(
-        info_frame, text="현재 세트 진행: 00:00 / 00:00", font=("맑은 고딕", 10)
-    )
+    label_time = tk.Label(info_frame, text="현재 세트 진행: 00:00 / 00:00", font=("맑은 고딕", 10))
     label_time.pack(anchor="w")
 
     label_repeat = tk.Label(info_frame, text="반복: -", font=("맑은 고딕", 10))
     label_repeat.pack(anchor="w")
 
-    label_set_status = tk.Label(
-        info_frame, text="세트 매크로: 정지됨", font=("맑은 고딕", 10)
-    )
+    label_set_status = tk.Label(info_frame, text="세트 매크로: 정지됨", font=("맑은 고딕", 10))
     label_set_status.pack(anchor="w")
 
     progress_var = tk.DoubleVar(value=0.0)
-    progress_bar = ttk.Progressbar(
-        info_frame, variable=progress_var, maximum=100, length=500
-    )
+    progress_bar = ttk.Progressbar(info_frame, variable=progress_var, maximum=100, length=500)
     progress_bar.pack(pady=5)
 
     gui_log("프로그램 시작됨.")
     gui_log("1) [🎬 세트 녹화 (1~10)] → record 모드로 macro_sets.json에 세트 저장")
-    gui_log(
-        "2) [▶ 세트 매크로 실행] → 선택 세트 랜덤 반복 실행 (3,2,1 카운트다운 후 시작)"
-    )
+    gui_log("2) [▶ 세트 매크로 실행] → 선택 세트 랜덤 실행 + (랜덤/세트:N)로 N번째마다 강제 실행 가능")
     gui_log("3) [🛑 STOP 전송 (전체)] → 세트 매크로 프로세스 종료 + Pico에 STOP 전송")
     gui_log("⚠ 이 exe는 '관리자 권한으로 실행'하는 것을 권장합니다.")
 
