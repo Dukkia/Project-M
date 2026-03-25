@@ -1,0 +1,106 @@
+{
+  "DEFAULT": [
+    {
+      "id": 1,
+      "events": [],
+      "interval": 0
+    },
+    {
+      "id": 2,
+      "events": [],
+      "interval": 0
+    },
+    {
+      "id": 3,
+      "events": [],
+      "interval": 0
+    },
+    {
+      "id": 4,
+      "events": [],
+      "interval": 0
+    },
+    {
+      "id": 5,
+      "events": [],
+      "interval": 0
+    },
+    {
+      "id": 6,
+      "events": [],
+      "interval": 0
+    },
+    {
+      "id": 7,
+      "events": [],
+      "interval": 0
+    },
+    {
+      "id": 8,
+      "events": [],
+      "interval": 0
+    },
+    {
+      "id": 9,
+      "events": [],
+      "interval": 0
+    },
+    {
+      "id": 10,
+      "events": [],
+      "interval": 0
+    }
+  ],
+  "알겠닥우": [
+    {
+      "id": 1,
+      "events": [],
+      "interval": 0
+    },
+    {
+      "id": 2,
+      "events": [],
+      "interval": 0
+    },
+    {
+      "id": 3,
+      "events": [],
+      "interval": 0
+    },
+    {
+      "id": 4,
+      "events": [],
+      "interval": 0
+    },
+    {
+      "id": 5,
+      "events": [],
+      "interval": 0
+    },
+    {
+      "id": 6,
+      "events": [],
+      "interval": 0
+    },
+    {
+      "id": 7,
+      "events": [],
+      "interval": 0
+    },
+    {
+      "id": 8,
+      "events": [],
+      "interval": 0
+    },
+    {
+      "id": 9,
+      "events": [],
+      "interval": 0
+    },
+    {
+      "id": 10,
+      "events": [],
+      "interval": 0
+    }
+  ]
+}
