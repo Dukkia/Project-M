@@ -17,5 +17,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   getScreenshot: () => ipcRenderer.invoke('get-screenshot'),
   getScreenList: () => ipcRenderer.invoke('get-screen-list'),
   getMainSourceId: (preferredId) => ipcRenderer.invoke('get-main-source-id', preferredId),
-  searchAreaColor: ({ x, y, w, h, hex }) => ipcRenderer.invoke('get-area-pixel-search', { x, y, w, h, hex })
+  searchAreaColor: ({ x, y, w, h, hex }) => ipcRenderer.invoke('get-area-pixel-search', { x, y, w, h, hex }),
+  discordNotify: (webhookUrl, message, embed) => ipcRenderer.send('discord-notify', { webhookUrl, message, embed }),
+  cvMatchTemplate: (templateDataUrl, sourceDataUrl, srcScale) => ipcRenderer.invoke('cv-match-template', { templateDataUrl, sourceDataUrl, srcScale }),
 });
